@@ -1,0 +1,91 @@
+/* PF2E Vision Configuration Module Styles */
+
+/* Custom vision section styling */
+.form-group[name*="pf2e-vision-config"] {
+    border-left: 3px solid #4b4a44;
+    padding-left: 10px;
+    margin: 10px 0;
+    background: rgba(75, 74, 68, 0.1);
+    border-radius: 3px;
+}
+
+/* Vision type selector styling */
+select[name="flags.pf2e-vision-config.visionType"] {
+    background: #f0f0e0;
+    border: 1px solid #7a7971;
+    border-radius: 3px;
+    padding: 5px;
+    width: 100%;
+    font-family: "Roboto", sans-serif;
+}
+
+select[name="flags.pf2e-vision-config.visionType"]:focus {
+    border-color: #4b4a44;
+    box-shadow: 0 0 5px rgba(75, 74, 68, 0.3);
+}
+
+/* Vision distance input styling */
+input[name*="pf2e-vision-config"] {
+    background: #f0f0e0;
+    border: 1px solid #7a7971;
+    border-radius: 3px;
+    padding: 5px;
+    width: 100%;
+    font-family: "Roboto", sans-serif;
+}
+
+input[name*="pf2e-vision-config"]:focus {
+    border-color: #4b4a44;
+    box-shadow: 0 0 5px rgba(75, 74, 68, 0.3);
+}
+
+/* Label styling */
+.form-group label {
+    font-weight: bold;
+    color: #4b4a44;
+    margin-bottom: 5px;
+    display: block;
+}
+
+/* Notes styling */
+.form-group .notes {
+    font-size: 0.8em;
+    color: #7a7971;
+    font-style: italic;
+    margin-top: 3px;
+}
+
+/* Vision type specific styling */
+.vision-type-normal {
+    border-left-color: #4b4a44;
+}
+
+.vision-type-low-light {
+    border-left-color: #ffd700;
+}
+
+.vision-type-darkvision {
+    border-left-color: #800080;
+}
+
+.vision-type-blightsight {
+    border-left-color: #ff4500;
+}
+
+.vision-type-tremorsense {
+    border-left-color: #8b4513;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .form-group[name*="pf2e-vision-config"] {
+        padding: 8px;
+        margin: 8px 0;
+    }
+    
+    input[name*="pf2e-vision-config"],
+    select[name="flags.pf2e-vision-config.visionType"] {
+        font-size: 14px;
+        padding: 8px;
+    }
+} 

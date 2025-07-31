@@ -1,0 +1,38 @@
+{
+  "PF2E_VISION_CONFIG": {
+    "MODULE_NAME": "PF2E Vision Configuration",
+    "MODULE_DESCRIPTION": "Adds configurable vision options for tokens including daylight vision distance in feet and miles.",
+    
+    "DAYLIGHT_VISION_FEET": "Daylight Vision Distance (feet)",
+    "DAYLIGHT_VISION_FEET_HINT": "Distance in feet that the token can see during daylight conditions",
+    
+    "DAYLIGHT_VISION_MILES": "Daylight Vision Distance (miles)",
+    "DAYLIGHT_VISION_MILES_HINT": "Distance in miles that the token can see during daylight conditions",
+    
+    "VISION_TYPE": "Vision Type",
+    "VISION_TYPE_HINT": "Type of vision the token possesses",
+    
+    "VISION_TYPES": {
+      "NORMAL": "Normal Vision",
+      "LOW_LIGHT": "Low-Light Vision",
+      "DARKVISION": "Darkvision",
+      "BLINDSIGHT": "Blindsight",
+      "TREMORSENSE": "Tremorsense"
+    },
+    
+    "SETTINGS": {
+      "TITLE": "PF2E Vision Configuration Settings",
+      "DEFAULT_DAYLIGHT_FEET": "Default Daylight Vision (feet)",
+      "DEFAULT_DAYLIGHT_FEET_HINT": "Default daylight vision distance in feet for new tokens",
+      "DEFAULT_DAYLIGHT_MILES": "Default Daylight Vision (miles)",
+      "DEFAULT_DAYLIGHT_MILES_HINT": "Default daylight vision distance in miles for new tokens",
+      "DEFAULT_VISION_TYPE": "Default Vision Type",
+      "DEFAULT_VISION_TYPE_HINT": "Default vision type for new tokens"
+    },
+    
+    "NOTIFICATIONS": {
+      "VISION_UPDATED": "Token vision updated",
+      "SETTINGS_SAVED": "Vision configuration settings saved"
+    }
+  }
+} 
