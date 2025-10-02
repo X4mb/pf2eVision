@@ -1,4 +1,5 @@
 {
+  "id": "pf2e-vision-config",
   "name": "pf2e-vision-config",
   "title": "PF2E Vision Configuration",
   "description": "Adds configurable vision options for tokens including daylight vision distance in feet and miles.",
@@ -19,8 +20,8 @@
       "path": "lang/en.json"
     }
   ],
-  "url": "",
-  "manifest": "",
-  "download": "",
+  "url": "https://github.com/X4mb/pf2eVision",
+  "manifest": "https://raw.githubusercontent.com/X4mb/pf2eVision/main/module.json",
+  "download": "https://github.com/X4mb/pf2eVision/archive/refs/heads/main.zip",
   "license": "MIT"
 } 
