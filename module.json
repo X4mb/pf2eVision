@@ -1,12 +1,16 @@
 {
   "id": "pf2e-vision-config",
-  "name": "pf2e-vision-config",
+  "type": "module",
   "title": "PF2E Vision Configuration",
   "description": "Adds configurable vision options for tokens including daylight vision distance in feet and miles.",
-  "version": "0.01",
-  "author": "Your Name",
-  "minimumCoreVersion": "10",
-  "compatibleCoreVersion": "11",
+  "version": "0.0.1",
+  "authors": [
+    { "name": "Your Name" }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
   "esmodules": [
     "scripts/pf2e-vision-config.js"
   ],
