@@ -1,320 +1,410 @@
 /**
  * PF2E Vision Configuration Module
  * Adds configurable vision options for tokens including daylight vision distance
+ * Compatible with Foundry VTT v13
  */
 
 class PF2EVisionConfig {
     constructor() {
-        this.initialize();
+        this.initialized = false;
     }
 
-    initialize() {
-        // Hook into token configuration
-        Hooks.on('renderTokenConfig', this.onRenderTokenConfig.bind(this));
+    /**
+     * Initialize the module when Foundry is ready
+     */
+    async initialize() {
+        if (this.initialized) return;
         
-        // Hook into token updates
-        Hooks.on('preUpdateToken', this.onPreUpdateToken.bind(this));
-        
-        // Hook into scene updates for vision calculations
-        Hooks.on('updateScene', this.onUpdateScene.bind(this));
-        
-        // Hook into token creation to set defaults
-        Hooks.on('preCreateToken', this.onPreCreateToken.bind(this));
-        
-        // Register module settings
-        this.registerSettings();
-        
-        console.log('PF2E Vision Configuration module initialized');
+        try {
+            // Hook into token configuration rendering
+            Hooks.on('renderTokenConfig', this.onRenderTokenConfig.bind(this));
+            
+            // Hook into token updates to apply vision settings
+            Hooks.on('preUpdateToken', this.onPreUpdateToken.bind(this));
+            
+            // Hook into token creation to set defaults
+            Hooks.on('preCreateToken', this.onPreCreateToken.bind(this));
+            
+            this.initialized = true;
+            console.log('PF2E Vision Configuration module initialized');
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error during initialization', error);
+            ui.notifications.error('PF2E Vision Configuration module failed to initialize. Check console for details.');
+        }
     }
 
     /**
      * Register module settings
+     * Settings must be registered when game object is available
      */
     registerSettings() {
-        game.settings.register('pf2e-vision-config', 'defaultDaylightFeet', {
-            name: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_FEET'),
-            hint: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_FEET_HINT'),
-            scope: 'world',
-            config: true,
-            type: Number,
-            default: 0,
-            range: {
-                min: 0,
-                max: 10000,
-                step: 10
-            }
-        });
+        if (!game) {
+            console.warn('PF2E Vision Configuration: game object not available for settings registration');
+            return;
+        }
 
-        game.settings.register('pf2e-vision-config', 'defaultDaylightMiles', {
-            name: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_MILES'),
-            hint: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_MILES_HINT'),
-            scope: 'world',
-            config: true,
-            type: Number,
-            default: 0,
-            range: {
-                min: 0,
-                max: 100,
-                step: 0.1
-            }
-        });
+        try {
+            game.settings.register('pf2e-vision-config', 'defaultDaylightFeet', {
+                name: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_FEET'),
+                hint: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_FEET_HINT'),
+                scope: 'world',
+                config: true,
+                type: Number,
+                default: 0,
+                range: {
+                    min: 0,
+                    max: 10000,
+                    step: 10
+                }
+            });
 
-        game.settings.register('pf2e-vision-config', 'defaultVisionType', {
-            name: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_VISION_TYPE'),
-            hint: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_VISION_TYPE_HINT'),
-            scope: 'world',
-            config: true,
-            type: String,
-            default: 'normal',
-            choices: {
-                'normal': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.NORMAL'),
-                'low-light': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.LOW_LIGHT'),
-                'darkvision': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.DARKVISION'),
-                'blindsight': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.BLINDSIGHT'),
-                'tremorsense': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.TREMORSENSE')
-            }
-        });
+            game.settings.register('pf2e-vision-config', 'defaultDaylightMiles', {
+                name: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_MILES'),
+                hint: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_DAYLIGHT_MILES_HINT'),
+                scope: 'world',
+                config: true,
+                type: Number,
+                default: 0,
+                range: {
+                    min: 0,
+                    max: 100,
+                    step: 0.1
+                }
+            });
+
+            game.settings.register('pf2e-vision-config', 'defaultVisionType', {
+                name: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_VISION_TYPE'),
+                hint: game.i18n.localize('PF2E_VISION_CONFIG.SETTINGS.DEFAULT_VISION_TYPE_HINT'),
+                scope: 'world',
+                config: true,
+                type: String,
+                default: 'normal',
+                choices: {
+                    'normal': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.NORMAL'),
+                    'low-light': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.LOW_LIGHT'),
+                    'darkvision': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.DARKVISION'),
+                    'blindsight': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.BLINDSIGHT'),
+                    'tremorsense': game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.TREMORSENSE')
+                }
+            });
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error registering settings', error);
+        }
     }
 
     /**
      * Set default values for new tokens
+     * @param {foundry.documents.BaseToken} tokenDocument - The token document being created
+     * @param {object} data - The data object being created
+     * @param {object} options - Additional options
+     * @param {string} userId - The user ID creating the token
      */
-    onPreCreateToken(token, data, options, userId) {
-        const defaultFeet = game.settings.get('pf2e-vision-config', 'defaultDaylightFeet');
-        const defaultMiles = game.settings.get('pf2e-vision-config', 'defaultDaylightMiles');
-        const defaultType = game.settings.get('pf2e-vision-config', 'defaultVisionType');
+    onPreCreateToken(tokenDocument, data, options, userId) {
+        try {
+            const defaultFeet = game.settings.get('pf2e-vision-config', 'defaultDaylightFeet') || 0;
+            const defaultMiles = game.settings.get('pf2e-vision-config', 'defaultDaylightMiles') || 0;
+            const defaultType = game.settings.get('pf2e-vision-config', 'defaultVisionType') || 'normal';
 
-        data.flags = data.flags || {};
-        data.flags['pf2e-vision-config'] = {
-            daylightVisionFeet: defaultFeet,
-            daylightVisionMiles: defaultMiles,
-            visionType: defaultType
-        };
+            // Only set defaults if flags aren't already specified
+            if (!data.flags?.['pf2e-vision-config']) {
+                data.flags = data.flags || {};
+                data.flags['pf2e-vision-config'] = {
+                    daylightVisionFeet: defaultFeet,
+                    daylightVisionMiles: defaultMiles,
+                    visionType: defaultType
+                };
+            }
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error setting default token values', error);
+        }
     }
 
     /**
      * Add custom vision fields to token configuration
+     * @param {ApplicationV2|Application} app - The token configuration application
+     * @param {jQuery} html - The rendered HTML
+     * @param {object} data - The form data
      */
     onRenderTokenConfig(app, html, data) {
-        const token = app.object;
-        const form = html.find('form');
-        
-        // Find the vision section - try multiple selectors for compatibility
-        let visionSection = form.find('.form-group:contains("Vision")').parent();
-        if (visionSection.length === 0) {
-            visionSection = form.find('.form-group:contains("vision")').parent();
+        try {
+            const tokenDocument = app.object;
+            if (!tokenDocument) {
+                console.warn('PF2E Vision Configuration: Token document not found');
+                return;
+            }
+
+            // Find a good place to insert our section - look for vision-related fields
+            const form = html.find('form').first();
+            if (!form.length) {
+                console.warn('PF2E Vision Configuration: Form not found in token config');
+                return;
+            }
+
+            // Try to find vision-related sections, or insert at end of form
+            let insertTarget = null;
+            
+            // Look for vision-related labels or fields
+            const visionLabels = form.find('label:contains("Vision"), label:contains("vision"), label:contains("Sight")');
+            if (visionLabels.length > 0) {
+                insertTarget = visionLabels.first().closest('.form-group, .form-section').parent();
+            }
+            
+            // If not found, look for token config sections
+            if (!insertTarget || insertTarget.length === 0) {
+                const sections = form.find('.form-section, .tab.active > .form-group').last();
+                insertTarget = sections.length > 0 ? sections : form.find('.form-group').last();
+            }
+            
+            // Fallback to form itself
+            if (!insertTarget || insertTarget.length === 0) {
+                insertTarget = form;
+            }
+
+            // Get current values from token document
+            const currentFeet = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') ?? 0;
+            const currentMiles = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') ?? 0;
+            const currentType = tokenDocument.getFlag('pf2e-vision-config', 'visionType') ?? 'normal';
+
+            // Escape values for HTML safety
+            const safeFeet = this.escapeHtml(String(currentFeet));
+            const safeMiles = this.escapeHtml(String(currentMiles));
+            const safeType = this.escapeHtml(String(currentType));
+            const totalVision = this.calculateTotalVision(currentFeet, currentMiles);
+
+            // Create custom vision section HTML
+            const customVisionHTML = $(`
+                <div class="form-group pf2e-vision-config-section">
+                    <h3 class="form-header">${game.i18n.localize('PF2E_VISION_CONFIG.MODULE_NAME')}</h3>
+                    <div class="form-group">
+                        <label>${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_FEET')}</label>
+                        <input type="number" 
+                               name="flags.pf2e-vision-config.daylightVisionFeet" 
+                               value="${safeFeet}" 
+                               min="0" 
+                               step="1"
+                               data-dtype="Number" />
+                        <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_FEET_HINT')}</p>
+                    </div>
+                    <div class="form-group">
+                        <label>${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_MILES')}</label>
+                        <input type="number" 
+                               name="flags.pf2e-vision-config.daylightVisionMiles" 
+                               value="${safeMiles}" 
+                               min="0" 
+                               step="0.1"
+                               data-dtype="Number" />
+                        <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_MILES_HINT')}</p>
+                    </div>
+                    <div class="form-group">
+                        <label>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPE')}</label>
+                        <select name="flags.pf2e-vision-config.visionType" data-dtype="String">
+                            <option value="normal" ${currentType === 'normal' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.NORMAL')}</option>
+                            <option value="low-light" ${currentType === 'low-light' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.LOW_LIGHT')}</option>
+                            <option value="darkvision" ${currentType === 'darkvision' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.DARKVISION')}</option>
+                            <option value="blindsight" ${currentType === 'blindsight' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.BLINDSIGHT')}</option>
+                            <option value="tremorsense" ${currentType === 'tremorsense' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.TREMORSENSE')}</option>
+                        </select>
+                        <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPE_HINT')}</p>
+                    </div>
+                    <div class="form-group">
+                        <label>${game.i18n.localize('PF2E_VISION_CONFIG.TOTAL_VISION_RANGE')}</label>
+                        <input type="text" 
+                               class="pf2e-vision-total-range" 
+                               readonly 
+                               value="${totalVision} ${game.i18n.localize('PF2E_VISION_CONFIG.UNITS.FEET')}" />
+                        <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.TOTAL_VISION_RANGE_HINT')}</p>
+                    </div>
+                </div>
+            `);
+
+            // Insert the custom section
+            if (insertTarget.length > 0) {
+                insertTarget.after(customVisionHTML);
+            } else {
+                form.append(customVisionHTML);
+            }
+
+            // Add event listeners for real-time calculation updates
+            this.addCalculationListeners(html);
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error rendering token config', error);
         }
-        if (visionSection.length === 0) {
-            visionSection = form.find('.form-group').last().parent();
-        }
-        
-        if (visionSection.length === 0) {
-            console.warn('Vision section not found in token config');
-            return;
-        }
-
-        // Get current values
-        const currentFeet = token.getFlag('pf2e-vision-config', 'daylightVisionFeet') || 0;
-        const currentMiles = token.getFlag('pf2e-vision-config', 'daylightVisionMiles') || 0;
-        const currentType = token.getFlag('pf2e-vision-config', 'visionType') || 'normal';
-
-        // Add custom vision fields after the existing vision options
-        const customVisionHTML = `
-            <div class="form-group pf2e-vision-config-section">
-                <h3>PF2E Vision Configuration</h3>
-                <div class="form-group">
-                    <label>${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_FEET')}</label>
-                    <input type="number" name="flags.pf2e-vision-config.daylightVisionFeet" 
-                           value="${currentFeet}" 
-                           min="0" step="1" />
-                    <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_FEET_HINT')}</p>
-                </div>
-                <div class="form-group">
-                    <label>${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_MILES')}</label>
-                    <input type="number" name="flags.pf2e-vision-config.daylightVisionMiles" 
-                           value="${currentMiles}" 
-                           min="0" step="0.1" />
-                    <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.DAYLIGHT_VISION_MILES_HINT')}</p>
-                </div>
-                <div class="form-group">
-                    <label>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPE')}</label>
-                    <select name="flags.pf2e-vision-config.visionType">
-                        <option value="normal" ${currentType === 'normal' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.NORMAL')}</option>
-                        <option value="low-light" ${currentType === 'low-light' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.LOW_LIGHT')}</option>
-                        <option value="darkvision" ${currentType === 'darkvision' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.DARKVISION')}</option>
-                        <option value="blindsight" ${currentType === 'blindsight' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.BLINDSIGHT')}</option>
-                        <option value="tremorsense" ${currentType === 'tremorsense' ? 'selected' : ''}>${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPES.TREMORSENSE')}</option>
-                    </select>
-                    <p class="notes">${game.i18n.localize('PF2E_VISION_CONFIG.VISION_TYPE_HINT')}</p>
-                </div>
-                <div class="form-group">
-                    <label>Total Vision Range</label>
-                    <input type="text" readonly value="${this.calculateTotalVision(currentFeet, currentMiles)} feet" />
-                    <p class="notes">Calculated total vision range (feet + miles converted)</p>
-                </div>
-            </div>
-        `;
-
-        visionSection.append(customVisionHTML);
-
-        // Add event listeners for real-time calculation updates
-        this.addCalculationListeners(html);
     }
 
     /**
      * Add event listeners for real-time vision calculation updates
+     * @param {jQuery} html - The rendered HTML
      */
     addCalculationListeners(html) {
-        const feetInput = html.find('input[name="flags.pf2e-vision-config.daylightVisionFeet"]');
-        const milesInput = html.find('input[name="flags.pf2e-vision-config.daylightVisionMiles"]');
-        const totalDisplay = html.find('input[readonly]');
+        try {
+            const feetInput = html.find('input[name="flags.pf2e-vision-config.daylightVisionFeet"]');
+            const milesInput = html.find('input[name="flags.pf2e-vision-config.daylightVisionMiles"]');
+            const totalDisplay = html.find('input.pf2e-vision-total-range');
 
-        const updateTotal = () => {
-            const feet = parseInt(feetInput.val()) || 0;
-            const miles = parseFloat(milesInput.val()) || 0;
-            const total = this.calculateTotalVision(feet, miles);
-            totalDisplay.val(`${total} feet`);
-        };
+            if (!feetInput.length || !milesInput.length || !totalDisplay.length) {
+                return; // Elements not found, skip listener setup
+            }
 
-        feetInput.on('input', updateTotal);
-        milesInput.on('input', updateTotal);
+            const updateTotal = () => {
+                try {
+                    const feet = parseInt(feetInput.val()) || 0;
+                    const miles = parseFloat(milesInput.val()) || 0;
+                    const total = this.calculateTotalVision(feet, miles);
+                    totalDisplay.val(`${total} ${game.i18n.localize('PF2E_VISION_CONFIG.UNITS.FEET')}`);
+                } catch (error) {
+                    console.error('PF2E Vision Configuration: Error updating total vision', error);
+                }
+            };
+
+            feetInput.on('input change', updateTotal);
+            milesInput.on('input change', updateTotal);
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error adding calculation listeners', error);
+        }
     }
 
     /**
      * Calculate total vision in feet
+     * @param {number} feet - Vision distance in feet
+     * @param {number} miles - Vision distance in miles
+     * @returns {number} Total vision in feet
      */
     calculateTotalVision(feet, miles) {
-        return feet + (miles * 5280);
+        const feetValue = Number(feet) || 0;
+        const milesValue = Number(miles) || 0;
+        return Math.round(feetValue + (milesValue * 5280));
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**
      * Handle token updates to apply custom vision settings
+     * @param {foundry.documents.BaseToken} tokenDocument - The token document being updated
+     * @param {object} changes - The update data
+     * @param {object} options - Additional options
+     * @param {string} userId - The user ID making the update
      */
-    onPreUpdateToken(token, changes, options, userId) {
-        // Check if vision flags are being updated
-        if (changes.flags && changes.flags['pf2e-vision-config']) {
+    onPreUpdateToken(tokenDocument, changes, options, userId) {
+        try {
+            // Check if vision flags are being updated
+            if (!changes.flags?.['pf2e-vision-config']) {
+                return; // No vision config changes
+            }
+
             const visionFlags = changes.flags['pf2e-vision-config'];
             
+            // Get current and new values
+            const currentFeet = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') ?? 0;
+            const currentMiles = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') ?? 0;
+            
+            const newFeet = visionFlags.daylightVisionFeet !== undefined 
+                ? Number(visionFlags.daylightVisionFeet) || 0 
+                : currentFeet;
+            const newMiles = visionFlags.daylightVisionMiles !== undefined 
+                ? Number(visionFlags.daylightVisionMiles) || 0 
+                : currentMiles;
+            
             // Calculate total daylight vision in feet
-            let totalDaylightVision = 0;
-            if (visionFlags.daylightVisionFeet !== undefined) {
-                totalDaylightVision += parseInt(visionFlags.daylightVisionFeet) || 0;
-            }
-            if (visionFlags.daylightVisionMiles !== undefined) {
-                totalDaylightVision += (parseFloat(visionFlags.daylightVisionMiles) || 0) * 5280;
-            }
+            const totalDaylightVision = this.calculateTotalVision(newFeet, newMiles);
 
-            // If no specific values provided, get current values
-            if (totalDaylightVision === 0) {
-                const currentFeet = token.getFlag('pf2e-vision-config', 'daylightVisionFeet') || 0;
-                const currentMiles = token.getFlag('pf2e-vision-config', 'daylightVisionMiles') || 0;
-                totalDaylightVision = this.calculateTotalVision(currentFeet, currentMiles);
-            }
+            // Get vision type (new or current)
+            const visionType = visionFlags.visionType !== undefined 
+                ? visionFlags.visionType 
+                : (tokenDocument.getFlag('pf2e-vision-config', 'visionType') ?? 'normal');
 
-            // Update the token's vision range based on vision type
-            if (visionFlags.visionType !== undefined) {
-                const visionType = visionFlags.visionType;
-                const visionRanges = this.calculateVisionRanges(totalDaylightVision, visionType);
-                
-                changes.vision = changes.vision || {};
-                changes.vision.range = visionRanges.range;
-                changes.vision.darkness = changes.vision.darkness || {};
-                changes.vision.darkness.range = visionRanges.darknessRange;
+            // Calculate vision ranges based on type
+            const visionRanges = this.calculateVisionRanges(totalDaylightVision, visionType);
+            
+            // Update the token's vision range in the changes
+            changes.vision = foundry.utils.mergeObject(changes.vision || {}, {
+                range: visionRanges.range,
+                darkness: foundry.utils.mergeObject(changes.vision?.darkness || {}, {
+                    range: visionRanges.darknessRange
+                })
+            });
+
+            // Optional: Show notification if vision was updated
+            if (totalDaylightVision > 0 && (newFeet !== currentFeet || newMiles !== currentMiles)) {
+                // Notification will be shown after update completes
             }
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error updating token vision', error);
         }
     }
 
     /**
      * Calculate vision ranges based on type and total vision
+     * @param {number} totalVision - Total vision distance in feet
+     * @param {string} visionType - Type of vision
+     * @returns {object} Object with range and darknessRange properties
      */
     calculateVisionRanges(totalVision, visionType) {
+        const totalVisionValue = Number(totalVision) || 0;
         let range = 0;
         let darknessRange = 0;
 
         switch (visionType) {
             case 'normal':
-                range = Math.min(totalVision, 1000);
+                // Normal vision works in light, limited range
+                range = Math.min(totalVisionValue, 1000);
                 darknessRange = 0;
                 break;
             case 'low-light':
-                range = Math.min(totalVision * 2, 2000);
+                // Low-light vision doubles range in dim light
+                range = Math.min(totalVisionValue * 2, 2000);
                 darknessRange = 0;
                 break;
             case 'darkvision':
+                // Darkvision works in darkness, limited range
                 range = 0;
-                darknessRange = Math.min(totalVision, 1000);
+                darknessRange = Math.min(totalVisionValue, 1000);
                 break;
             case 'blindsight':
+                // Blindsight has shorter range but works in darkness
                 range = 0;
-                darknessRange = Math.min(totalVision, 500);
+                darknessRange = Math.min(totalVisionValue, 500);
                 break;
             case 'tremorsense':
-                range = Math.min(totalVision, 300);
+                // Tremorsense has very limited range
+                range = Math.min(totalVisionValue, 300);
                 darknessRange = 0;
                 break;
             default:
-                range = Math.min(totalVision, 1000);
+                // Default to normal vision
+                range = Math.min(totalVisionValue, 1000);
                 darknessRange = 0;
         }
 
-        return { range, darknessRange };
+        return { 
+            range: Math.round(range), 
+            darknessRange: Math.round(darknessRange) 
+        };
     }
 
-    /**
-     * Update scene lighting based on token vision settings
-     */
-    onUpdateScene(scene, changes, options, userId) {
-        // This could be expanded to handle scene-wide lighting changes
-        // based on the vision capabilities of tokens in the scene
-        if (changes.globalLight !== undefined) {
-            this.updateTokenVisionForLighting(scene);
-        }
-    }
-
-    /**
-     * Update token vision based on current scene lighting
-     */
-    updateTokenVisionForLighting(scene) {
-        const tokens = scene.tokens.contents;
-        tokens.forEach(token => {
-            const visionType = token.getFlag('pf2e-vision-config', 'visionType') || 'normal';
-            const daylightVisionFeet = token.getFlag('pf2e-vision-config', 'daylightVisionFeet') || 0;
-            const daylightVisionMiles = token.getFlag('pf2e-vision-config', 'daylightVisionMiles') || 0;
-            
-            let totalVision = this.calculateTotalVision(daylightVisionFeet, daylightVisionMiles);
-            const visionRanges = this.calculateVisionRanges(totalVision, visionType);
-            
-            // Adjust vision based on scene lighting
-            if (scene.globalLight) {
-                // Bright lighting - use normal vision range
-                token.update({
-                    'vision.range': visionRanges.range,
-                    'vision.darkness.range': 0
-                });
-            } else {
-                // Dim or no lighting - apply vision type modifiers
-                if (visionType === 'darkvision' || visionType === 'blindsight') {
-                    token.update({
-                        'vision.range': 0,
-                        'vision.darkness.range': visionRanges.darknessRange
-                    });
-                } else if (visionType === 'low-light') {
-                    token.update({
-                        'vision.range': Math.min(totalVision * 0.5, 500),
-                        'vision.darkness.range': 0
-                    });
-                } else {
-                    token.update({
-                        'vision.range': 0,
-                        'vision.darkness.range': 0
-                    });
-                }
-            }
-        });
-    }
 }
 
+// Create module instance
+const pf2eVisionConfig = new PF2EVisionConfig();
+
+// Register settings during init hook (when game object becomes available)
+Hooks.once('init', () => {
+    try {
+        pf2eVisionConfig.registerSettings();
+    } catch (error) {
+        console.error('PF2E Vision Configuration: Error during init', error);
+    }
+});
+
 // Initialize the module when Foundry is ready
-Hooks.once('ready', () => {
-    new PF2EVisionConfig();
+Hooks.once('ready', async () => {
+    await pf2eVisionConfig.initialize();
 }); 

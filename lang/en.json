@@ -30,6 +30,11 @@
       "DEFAULT_VISION_TYPE_HINT": "Default vision type for new tokens"
     },
     
+    "TOTAL_VISION_RANGE": "Total Vision Range",
+    "TOTAL_VISION_RANGE_HINT": "Calculated total vision range (feet + miles converted to feet)",
+    "UNITS": {
+      "FEET": "feet"
+    },
     "NOTIFICATIONS": {
       "VISION_UPDATED": "Token vision updated",
       "SETTINGS_SAVED": "Vision configuration settings saved"
