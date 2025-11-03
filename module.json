@@ -4,7 +4,7 @@
   "type": "module",
   "title": "PF2E Vision Configuration",
   "description": "Adds configurable vision options for tokens including daylight vision distance in feet and miles.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "authors": [
     { "name": "Your Name" }
   ],

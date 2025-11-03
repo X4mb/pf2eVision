@@ -117,8 +117,9 @@ This module (`pf2e-vision-config`) extends token vision configuration for Pathfi
 
 1. **Code Changes**: Update files in `scripts/`, `styles/`, `lang/` as needed
 2. **Testing**: Test in Foundry VTT v13 environment
-3. **Version Bump**: Update version in `module.json` following semantic versioning
+3. **Version Bump**: **CRITICAL** - Always update version in `module.json` following semantic versioning (e.g., "0.0.2" -> "0.0.3"). Foundry VTT checks the version to determine if a module update is available when checking GitHub manifests. Without a version bump, users won't see updates.
 4. **Documentation**: Update README.md with changes
+5. **Git Commit**: After version bump and code changes, commit and push to repository
 
 ## Common Patterns
 
