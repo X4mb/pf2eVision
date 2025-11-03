@@ -19,8 +19,14 @@ class PF2EVisionConfig {
             // Hook into token configuration rendering
             Hooks.on('renderTokenConfig', this.onRenderTokenConfig.bind(this));
             
+            // Hook into token config form submission to process vision before save
+            Hooks.on('closeTokenConfig', this.onCloseTokenConfig.bind(this));
+            
             // Hook into token updates to apply vision settings
             Hooks.on('preUpdateToken', this.onPreUpdateToken.bind(this));
+            
+            // Hook into token updates after save to ensure vision is applied
+            Hooks.on('updateToken', this.onUpdateToken.bind(this));
             
             // Hook into token creation to set defaults
             Hooks.on('preCreateToken', this.onPreCreateToken.bind(this));
@@ -113,6 +119,24 @@ class PF2EVisionConfig {
                     daylightVisionMiles: defaultMiles,
                     visionType: defaultType
                 };
+            }
+
+            // Calculate and apply vision ranges for new token
+            const visionFlags = data.flags['pf2e-vision-config'];
+            if (visionFlags) {
+                const totalVision = this.calculateTotalVision(
+                    visionFlags.daylightVisionFeet || 0,
+                    visionFlags.daylightVisionMiles || 0
+                );
+                const visionRanges = this.calculateVisionRanges(totalVision, visionFlags.visionType || 'normal');
+                
+                // Set vision in the data object
+                data.vision = foundry.utils.mergeObject(data.vision || {}, {
+                    range: visionRanges.range,
+                    darkness: foundry.utils.mergeObject(data.vision?.darkness || {}, {
+                        range: visionRanges.darknessRange
+                    })
+                });
             }
         } catch (error) {
             console.error('PF2E Vision Configuration: Error setting default token values', error);
@@ -287,6 +311,16 @@ class PF2EVisionConfig {
     }
 
     /**
+     * Handle token config form close - ensures vision is calculated before form submission
+     * @param {ApplicationV2|Application} app - The token configuration application
+     * @param {jQuery} html - The rendered HTML
+     */
+    onCloseTokenConfig(app, html) {
+        // This hook runs before the form is submitted
+        // The actual update will happen in onPreUpdateToken
+    }
+
+    /**
      * Handle token updates to apply custom vision settings
      * @param {foundry.documents.BaseToken} tokenDocument - The token document being updated
      * @param {object} changes - The update data
@@ -295,36 +329,39 @@ class PF2EVisionConfig {
      */
     onPreUpdateToken(tokenDocument, changes, options, userId) {
         try {
-            // Check if vision flags are being updated
-            if (!changes.flags?.['pf2e-vision-config']) {
-                return; // No vision config changes
+            // Check if token has our flags (either existing or being set)
+            const hasFlags = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') !== null ||
+                            tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') !== null ||
+                            changes.flags?.['pf2e-vision-config'];
+            
+            if (!hasFlags) {
+                return; // Token doesn't use our vision system
             }
 
-            const visionFlags = changes.flags['pf2e-vision-config'];
+            // Get vision flags from changes or current document
+            const visionFlags = changes.flags?.['pf2e-vision-config'] || {};
             
-            // Get current and new values
-            const currentFeet = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') ?? 0;
-            const currentMiles = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') ?? 0;
+            // Get values (new from changes, or current from document)
+            const newFeet = visionFlags.daylightVisionFeet !== undefined
+                ? Number(visionFlags.daylightVisionFeet) || 0
+                : (tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') ?? 0);
             
-            const newFeet = visionFlags.daylightVisionFeet !== undefined 
-                ? Number(visionFlags.daylightVisionFeet) || 0 
-                : currentFeet;
-            const newMiles = visionFlags.daylightVisionMiles !== undefined 
-                ? Number(visionFlags.daylightVisionMiles) || 0 
-                : currentMiles;
+            const newMiles = visionFlags.daylightVisionMiles !== undefined
+                ? Number(visionFlags.daylightVisionMiles) || 0
+                : (tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') ?? 0);
             
             // Calculate total daylight vision in feet
             const totalDaylightVision = this.calculateTotalVision(newFeet, newMiles);
 
-            // Get vision type (new or current)
-            const visionType = visionFlags.visionType !== undefined 
-                ? visionFlags.visionType 
+            // Get vision type (new from changes, or current from document)
+            const visionType = visionFlags.visionType !== undefined
+                ? visionFlags.visionType
                 : (tokenDocument.getFlag('pf2e-vision-config', 'visionType') ?? 'normal');
 
             // Calculate vision ranges based on type
             const visionRanges = this.calculateVisionRanges(totalDaylightVision, visionType);
             
-            // Update the token's vision range in the changes
+            // Always update vision when our flags exist or are being updated
             changes.vision = foundry.utils.mergeObject(changes.vision || {}, {
                 range: visionRanges.range,
                 darkness: foundry.utils.mergeObject(changes.vision?.darkness || {}, {
@@ -332,12 +369,52 @@ class PF2EVisionConfig {
                 })
             });
 
-            // Optional: Show notification if vision was updated
-            if (totalDaylightVision > 0 && (newFeet !== currentFeet || newMiles !== currentMiles)) {
-                // Notification will be shown after update completes
-            }
+            console.log(`PF2E Vision Config: Applied vision - Type: ${visionType}, Range: ${visionRanges.range}, Darkness: ${visionRanges.darknessRange}, Total: ${totalDaylightVision}ft`);
         } catch (error) {
             console.error('PF2E Vision Configuration: Error updating token vision', error);
+        }
+    }
+
+    /**
+     * Handle token updates after save to ensure vision is properly applied
+     * @param {foundry.documents.BaseToken} tokenDocument - The token document that was updated
+     * @param {object} changes - The update data that was applied
+     * @param {object} options - Additional options
+     * @param {string} userId - The user ID that made the update
+     */
+    async onUpdateToken(tokenDocument, changes, options, userId) {
+        try {
+            // Check if token has our flags
+            const hasFlags = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') !== null ||
+                            tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') !== null;
+            
+            if (!hasFlags) {
+                return; // Token doesn't use our vision system
+            }
+
+            // Get current vision values
+            const feet = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionFeet') ?? 0;
+            const miles = tokenDocument.getFlag('pf2e-vision-config', 'daylightVisionMiles') ?? 0;
+            const visionType = tokenDocument.getFlag('pf2e-vision-config', 'visionType') ?? 'normal';
+            
+            // Calculate total vision and ranges
+            const totalVision = this.calculateTotalVision(feet, miles);
+            const visionRanges = this.calculateVisionRanges(totalVision, visionType);
+            
+            // Get current vision settings
+            const currentRange = tokenDocument.vision?.range ?? 0;
+            const currentDarknessRange = tokenDocument.vision?.darkness?.range ?? 0;
+            
+            // If vision doesn't match our calculated values, update it
+            if (currentRange !== visionRanges.range || currentDarknessRange !== visionRanges.darknessRange) {
+                await tokenDocument.update({
+                    'vision.range': visionRanges.range,
+                    'vision.darkness.range': visionRanges.darknessRange
+                });
+                console.log(`PF2E Vision Config: Corrected vision after update - Range: ${visionRanges.range}, Darkness: ${visionRanges.darknessRange}`);
+            }
+        } catch (error) {
+            console.error('PF2E Vision Configuration: Error in post-update vision check', error);
         }
     }
 
@@ -354,33 +431,33 @@ class PF2EVisionConfig {
 
         switch (visionType) {
             case 'normal':
-                // Normal vision works in light, limited range
-                range = Math.min(totalVisionValue, 1000);
+                // Normal vision works in light - use exact range specified
+                range = totalVisionValue;
                 darknessRange = 0;
                 break;
             case 'low-light':
                 // Low-light vision doubles range in dim light
-                range = Math.min(totalVisionValue * 2, 2000);
+                range = totalVisionValue * 2;
                 darknessRange = 0;
                 break;
             case 'darkvision':
-                // Darkvision works in darkness, limited range
+                // Darkvision works in darkness - use exact range specified
                 range = 0;
-                darknessRange = Math.min(totalVisionValue, 1000);
+                darknessRange = totalVisionValue;
                 break;
             case 'blindsight':
-                // Blindsight has shorter range but works in darkness
+                // Blindsight works in darkness - use exact range specified
                 range = 0;
-                darknessRange = Math.min(totalVisionValue, 500);
+                darknessRange = totalVisionValue;
                 break;
             case 'tremorsense':
-                // Tremorsense has very limited range
-                range = Math.min(totalVisionValue, 300);
-                darknessRange = 0;
+                // Tremorsense has limited range but works in darkness
+                range = 0;
+                darknessRange = totalVisionValue;
                 break;
             default:
-                // Default to normal vision
-                range = Math.min(totalVisionValue, 1000);
+                // Default to normal vision - use exact range specified
+                range = totalVisionValue;
                 darknessRange = 0;
         }
 
