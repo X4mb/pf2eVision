@@ -1,0 +1,21 @@
+# Cursor AI rules - exclude from repository
+.cursorrules
+
+# Node modules (if added later)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
